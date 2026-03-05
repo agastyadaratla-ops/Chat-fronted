@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SecureChatHQ</title>
+  <style>
+    body { font-family: Arial; background: #111; color: white; margin: 0; }
+    #chat { padding: 20px; height: 60vh; overflow-y: auto; }
+    #users { background: #222; padding: 10px; }
+    input, button { padding: 10px; margin: 5px 0; }
+    #messageForm { display: flex; gap: 10px; padding: 10px; }
+    .system { color: red; }
+    #adminPanel { border: 2px solid gold; padding: 10px; margin: 10px 0; display:none; }
+  </style>
+</head>
+<body>
+
+<div id="users">Online: </div>
+<div id="chat"></div>
+
+<form id="messageForm">
+  <input id="messageInput" autocomplete="off" placeholder="Type message..." />
+  <button>Send</button>
+</form>
+
+<div id="adminPanel">
+  <label>Change Chat Password:</label>
+  <input id="newChatPass" placeholder="New password" />
+  <button id="updatePass">Update</button>
+</div>
+
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+<script>
+const socket = io("REPLACE_WITH_BACKEND_URL");
+
+let passwordValid = false;
+let isAdmin = false;
+
+while(!passwordValid){
+  const pw = prompt("Enter chat password:");
+  if(!pw) continue;
+  socket.emit("enter password", pw, (res)=>{
+    if(res.success){
+      passwordValid = true;
+      isAdmin = res.isAdmin;
+      startChat();
+    } else {
+      alert("Wrong password!");
+    }
+  });
+}
+
+function startChat(){
+  let username = localStorage.getItem("chatUsername");
+  if(!username){
+    username = prompt("Enter your username:");
+    socket.emit("set username", username, (res)=>{
+      if(!res.success){
+        alert(res.message);
+        localStorage.removeItem("chatUsername");
+        location.reload();
+      } else {
+        localStorage.setItem("chatUsername", username);
+      }
+    });
+  } else {
+    socket.emit("set username", username, ()=>{});
+  }
+
+  if(isAdmin){
+    document.getElementById("adminPanel").style.display = "block";
+    document.getElementById("updatePass").onclick = ()=>{
+      const newPass = document.getElementById("newChatPass").value;
+      if(!newPass) return alert("Enter new password");
+      socket.emit("change chat password", newPass, socket.id, (res)=>{
+        alert(res.message);
+        document.getElementById("newChatPass").value = "";
+      });
+    };
+  }
+}
+
+const chatForm = document.getElementById("messageForm");
+const chatInput = document.getElementById("messageInput");
+const chatDiv = document.getElementById("chat");
+const usersDiv = document.getElementById("users");
+
+chatForm.addEventListener("submit", e=>{
+  e.preventDefault();
+  if(chatInput.value){
+    socket.emit("chat message", chatInput.value);
+    chatInput.value="";
+  }
+});
+
+function addMessage(text,className=""){
+  const div = document.createElement("div");
+  div.textContent = text;
+  if(className) div.classList.add(className);
+  chatDiv.appendChild(div);
+  chatDiv.scrollTop = chatDiv.scrollHeight;
+}
+
+socket.on("chat message", data=>{
+  addMessage(data.username+": "+data.message);
+});
+
+socket.on("online users", users=>{
+  usersDiv.textContent = "Online: "+users.join(", ");
+});
+
+socket.on("message blocked", msg=>{
+  addMessage(msg,"system");
+});
+</script>
+</body>
+</html>
