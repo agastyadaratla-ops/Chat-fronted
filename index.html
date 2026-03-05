@@ -35,20 +35,22 @@ const socket = io("https://chat-hq.onrender.com");
 let passwordValid = false;
 let isAdmin = false;
 
-while(!passwordValid){
+function askPassword() {
   const pw = prompt("Enter chat password:");
-  if(!pw) continue;
+  if(!pw) return askPassword();
+
   socket.emit("enter password", pw, (res)=>{
     if(res.success){
-      passwordValid = true;
       isAdmin = res.isAdmin;
       startChat();
     } else {
       alert("Wrong password!");
+      askPassword();
     }
   });
 }
 
+askPassword();
 function startChat(){
   let username = localStorage.getItem("chatUsername");
   if(!username){
