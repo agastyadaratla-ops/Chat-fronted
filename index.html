@@ -3,6 +3,8 @@
 <head>
 <title>SecureChatHQ</title>
 
+<link rel="icon" href="favicon.png">
+
 <style>
 
 body{
@@ -12,9 +14,9 @@ background:#0f172a;
 color:white;
 }
 
-/* LOGIN SCREEN */
+/* LOGIN SCREENS */
 
-#loginScreen{
+.screen{
 position:fixed;
 width:100%;
 height:100%;
@@ -24,7 +26,7 @@ justify-content:center;
 background:#0f172a;
 }
 
-#loginBox{
+.box{
 background:#020617;
 padding:40px;
 border-radius:10px;
@@ -33,30 +35,30 @@ text-align:center;
 box-shadow:0 0 20px rgba(0,0,0,.5);
 }
 
-#loginBox h2{
-margin-top:0;
-color:#38bdf8;
-}
-
-.loginInput{
+input{
 width:100%;
 padding:10px;
-margin:8px 0;
+margin-top:10px;
 border:none;
 border-radius:6px;
 }
 
-.loginBtn{
-width:100%;
+button{
+margin-top:12px;
 padding:10px;
-margin-top:10px;
+width:100%;
 border:none;
 background:#38bdf8;
 border-radius:6px;
 cursor:pointer;
 }
 
-/* CHAT APP */
+#error{
+color:red;
+margin-top:10px;
+}
+
+/* APP */
 
 #app{
 display:none;
@@ -73,11 +75,7 @@ padding:15px;
 border-right:1px solid #1e293b;
 }
 
-#users{
-font-size:14px;
-}
-
-/* MAIN */
+/* CHAT */
 
 #main{
 flex:1;
@@ -94,13 +92,10 @@ flex-direction:column;
 gap:10px;
 }
 
-/* BUBBLES */
-
 .message{
 max-width:65%;
 padding:10px 14px;
 border-radius:14px;
-font-size:14px;
 }
 
 .self{
@@ -119,8 +114,6 @@ opacity:.6;
 margin-bottom:3px;
 }
 
-/* MESSAGE BAR */
-
 #messageForm{
 display:flex;
 padding:10px;
@@ -135,37 +128,30 @@ border-radius:6px;
 margin-right:8px;
 }
 
-button{
-padding:10px 14px;
-border:none;
-background:#38bdf8;
-border-radius:6px;
-cursor:pointer;
-}
-
 </style>
 </head>
 
 <body>
 
-<!-- LOGIN SCREEN -->
+<!-- PASSWORD SCREEN -->
 
-<div id="loginScreen">
-
-<div id="loginBox">
-
+<div id="passwordScreen" class="screen">
+<div class="box">
 <h2>SecureChatHQ</h2>
-
-<input id="passwordInput" class="loginInput" type="password" placeholder="Chat Password">
-
-<input id="usernameInput" class="loginInput" placeholder="Username">
-
-<button class="loginBtn" id="loginBtn">Join Chat</button>
-
-<div id="loginError" style="color:red;margin-top:10px;"></div>
-
+<input id="passwordInput" type="password" placeholder="Enter password">
+<button onclick="checkPassword()">Continue</button>
+<div id="error"></div>
+</div>
 </div>
 
+<!-- USERNAME SCREEN -->
+
+<div id="usernameScreen" class="screen" style="display:none;">
+<div class="box">
+<h2>Choose Username</h2>
+<input id="usernameInput" placeholder="Username">
+<button onclick="setUsername()">Join Chat</button>
+</div>
 </div>
 
 <!-- CHAT APP -->
@@ -182,7 +168,7 @@ cursor:pointer;
 <div id="chat"></div>
 
 <form id="messageForm">
-<input id="messageInput" autocomplete="off" placeholder="Type message...">
+<input id="messageInput" placeholder="Type message...">
 <button>Send</button>
 </form>
 
@@ -199,48 +185,54 @@ const socket = io("https://chat-hq.onrender.com");
 let username="";
 let isAdmin=false;
 
-const loginBtn=document.getElementById("loginBtn");
+/* PASSWORD STEP */
 
-loginBtn.onclick=()=>{
+function checkPassword(){
 
-const password=document.getElementById("passwordInput").value;
-username=document.getElementById("usernameInput").value;
+const pw=document.getElementById("passwordInput").value;
 
-if(!password||!username){
-document.getElementById("loginError").textContent="Enter password and username";
-return;
-}
-
-socket.emit("enter password",password,(res)=>{
+socket.emit("enter password",pw,(res)=>{
 
 if(!res.success){
-document.getElementById("loginError").textContent="Wrong password";
+document.getElementById("error").textContent="Wrong password";
 return;
 }
 
 isAdmin=res.isAdmin;
 
-socket.emit("set username",username,(res2)=>{
+document.getElementById("passwordScreen").style.display="none";
+document.getElementById("usernameScreen").style.display="flex";
 
-if(!res2.success){
-document.getElementById("loginError").textContent=res2.message;
+});
+
+}
+
+/* USERNAME STEP */
+
+function setUsername(){
+
+username=document.getElementById("usernameInput").value;
+
+if(!username) return;
+
+socket.emit("set username",username,(res)=>{
+
+if(!res.success){
+alert(res.message);
 return;
 }
 
-/* SUCCESS LOGIN */
-
-document.getElementById("loginScreen").style.display="none";
+document.getElementById("usernameScreen").style.display="none";
 document.getElementById("app").style.display="flex";
 
 });
 
-});
-
-};
+}
 
 /* SEND MESSAGE */
 
 document.getElementById("messageForm").addEventListener("submit",e=>{
+
 e.preventDefault();
 
 const input=document.getElementById("messageInput");
@@ -248,15 +240,15 @@ const input=document.getElementById("messageInput");
 if(input.value){
 
 socket.emit("chat message",input.value);
-
 input.value="";
+
 }
 
 });
 
-/* RENDER MESSAGE */
+/* DISPLAY MESSAGE */
 
-function renderMessage(data){
+socket.on("chat message",data=>{
 
 const chat=document.getElementById("chat");
 
@@ -284,13 +276,9 @@ chat.appendChild(bubble);
 
 chat.scrollTop=chat.scrollHeight;
 
-}
-
-/* SOCKET EVENTS */
-
-socket.on("chat message",data=>{
-renderMessage(data);
 });
+
+/* ONLINE USERS */
 
 socket.on("online users",users=>{
 document.getElementById("users").textContent=users.join(", ");
