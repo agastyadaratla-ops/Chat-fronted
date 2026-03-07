@@ -1,346 +1,1214 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-
-<title>SecureChatHQ</title>
-<link rel="icon" href="favicon.png">
-
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ChatHQ</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
 <style>
+  /* ── RESET & VARIABLES ─────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-body{
-margin:0;
-font-family:Arial, sans-serif;
-background:#0f172a;
-color:white;
-}
+  :root {
+    --bg:        #0d0f14;
+    --surface:   #151820;
+    --surface2:  #1c2030;
+    --border:    #252a3a;
+    --accent:    #4ade80;
+    --accent2:   #22d3ee;
+    --danger:    #f87171;
+    --warn:      #fbbf24;
+    --text:      #e2e8f0;
+    --muted:     #64748b;
+    --own-msg:   #1a2e1f;
+    --own-border:#2d5a38;
+    --radius:    12px;
+    --font-head: 'Syne', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
 
-/* LOGIN SCREENS */
+  html, body { height: 100%; overflow: hidden; }
 
-.screen{
-position:fixed;
-width:100%;
-height:100%;
-display:flex;
-align-items:center;
-justify-content:center;
-background:#0f172a;
-}
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
 
-.loginBox{
-background:#020617;
-padding:40px;
-border-radius:12px;
-width:320px;
-text-align:center;
-box-shadow:0 0 25px rgba(0,0,0,.5);
-}
+  /* ── SCROLLBAR ──────────────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-.loginBox h2{
-margin-top:0;
-color:#38bdf8;
-}
+  /* ── UTILITY ────────────────────────────────────────────────── */
+  .hidden { display: none !important; }
+  .btn {
+    font-family: var(--font-body);
+    font-weight: 500;
+    font-size: 14px;
+    padding: 10px 20px;
+    border-radius: var(--radius);
+    border: none;
+    cursor: pointer;
+    transition: all .15s ease;
+    letter-spacing: .3px;
+  }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-primary:hover { background: #6ee7a0; transform: translateY(-1px); }
+  .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-danger:hover { background: #fca5a5; }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
 
-.loginBox input{
-width:100%;
-padding:12px;
-margin-top:10px;
-border:none;
-border-radius:6px;
-background:#1e293b;
-color:white;
-}
+  input, textarea {
+    font-family: var(--font-body);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color .2s;
+    width: 100%;
+  }
+  input:focus, textarea:focus { border-color: var(--accent); }
+  input::placeholder, textarea::placeholder { color: var(--muted); }
 
-.loginBox button{
-margin-top:12px;
-width:100%;
-padding:12px;
-border:none;
-background:#38bdf8;
-border-radius:6px;
-cursor:pointer;
-font-weight:bold;
-}
+  /* ── OVERLAY / MODAL ────────────────────────────────────────── */
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.7);
+    backdrop-filter: blur(6px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+    animation: fadeIn .2s ease;
+  }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 36px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 24px 80px rgba(0,0,0,.6);
+    animation: slideUp .25s ease;
+  }
+  .modal h2 {
+    font-family: var(--font-head);
+    font-size: 26px;
+    font-weight: 800;
+    margin-bottom: 6px;
+  }
+  .modal .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .5px; }
+  .error-msg { color: var(--danger); font-size: 13px; margin-top: 10px; min-height: 18px; }
+  .modal-tabs { display: flex; gap: 8px; margin-bottom: 24px; }
+  .tab-btn {
+    flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--border);
+    background: transparent; color: var(--muted); font-family: var(--font-body);
+    font-size: 13px; cursor: pointer; transition: all .15s;
+  }
+  .tab-btn.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
 
-#error{
-color:red;
-margin-top:10px;
-}
+  @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(20px) } to { opacity: 1; transform: translateY(0) } }
 
-/* APP */
+  /* ── LOGO / HEADER ──────────────────────────────────────────── */
+  .app-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 20px;
+    height: 56px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+  .logo {
+    font-family: var(--font-head);
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .logo-dot {
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    display: inline-block;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(74,222,128,.4); }
+    50% { opacity: .8; box-shadow: 0 0 0 6px rgba(74,222,128,0); }
+  }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .room-badge {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 4px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    color: var(--accent2);
+  }
+  .icon-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    width: 34px; height: 34px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .15s;
+  }
+  .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
 
-#app{
-display:none;
-height:100vh;
-}
+  /* ── MAIN LAYOUT ────────────────────────────────────────────── */
+  .app-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
 
-/* MAIN CHAT CONTAINER */
+  /* ── SIDEBAR ────────────────────────────────────────────────── */
+  .sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .sidebar-section { padding: 16px; border-bottom: 1px solid var(--border); }
+  .sidebar-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .online-list { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; flex: 1; padding: 12px 16px; }
+  .online-user {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    transition: background .15s;
+  }
+  .online-user:hover { background: var(--surface2); }
+  .online-user .avatar {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    background: var(--surface2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .online-dot { width: 7px; height: 7px; background: var(--accent); border-radius: 50%; margin-left: auto; }
 
-#main{
-display:flex;
-flex-direction:column;
-height:100vh;
-max-width:900px;
-margin:auto;
-}
+  .room-list { display: flex; flex-direction: column; gap: 4px; }
+  .room-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all .15s;
+    border: 1px solid transparent;
+    color: var(--muted);
+  }
+  .room-item:hover { background: var(--surface2); color: var(--text); }
+  .room-item.active { background: var(--own-msg); border-color: var(--own-border); color: var(--accent); }
+  .room-item .room-icon { font-size: 14px; }
 
-/* CHAT AREA */
+  /* ── CHAT AREA ──────────────────────────────────────────────── */
+  .chat-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg);
+  }
 
-#chat{
-flex:1;
-overflow-y:auto;
-padding:20px;
-display:flex;
-flex-direction:column;
-gap:12px;
-}
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
 
-/* CHAT BUBBLES */
+  /* ── MESSAGES ───────────────────────────────────────────────── */
+  .msg-group { display: flex; flex-direction: column; margin-bottom: 12px; }
 
-.message{
-max-width:65%;
-padding:10px 14px;
-border-radius:16px;
-font-size:14px;
-word-wrap:break-word;
-}
+  .msg-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 4px 0;
+    animation: msgIn .2s ease;
+  }
+  @keyframes msgIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
 
-.self{
-align-self:flex-end;
-background:#2563eb;
-border-bottom-right-radius:4px;
-}
+  .msg-row.own { flex-direction: row-reverse; }
 
-.other{
-align-self:flex-start;
-background:#1e293b;
-border-bottom-left-radius:4px;
-}
+  .msg-avatar {
+    width: 32px; height: 32px;
+    border-radius: 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .msg-row.own .msg-avatar { color: var(--accent2); }
 
-.username{
-font-size:11px;
-opacity:.6;
-margin-bottom:4px;
-}
+  .msg-content { max-width: 68%; display: flex; flex-direction: column; gap: 2px; }
+  .msg-row.own .msg-content { align-items: flex-end; }
 
-/* MESSAGE BAR */
+  .msg-meta {
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 4px;
+  }
+  .msg-username {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .msg-row.own .msg-username { color: var(--accent2); }
+  .msg-time {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+  }
 
-#messageForm{
-display: flex;
-align-items: center;
-padding: 10px;
-gap: 8px;
-background: #0f172a;
-border-top: 1px solid #1e293b;
-}
+  .msg-bubble {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px 14px 14px 4px;
+    padding: 10px 14px;
+    font-size: 14px;
+    line-height: 1.5;
+    word-break: break-word;
+    position: relative;
+  }
+  .msg-row.own .msg-bubble {
+    background: var(--own-msg);
+    border-color: var(--own-border);
+    border-radius: 14px 14px 4px 14px;
+  }
 
-#messageInput{
-flex: 1;
-padding: 8px 10px;
-font-size: 14px;
-border-radius: 8px;
-border: none;
-outline: none;
-}
+  .msg-image {
+    max-width: 280px;
+    max-height: 300px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: opacity .15s;
+    display: block;
+  }
+  .msg-image:hover { opacity: .9; }
 
-#sendBtn{
-padding: 8px 14px;
-border: none;
-border-radius: 8px;
-background: #38bdf8;
-color: white;
-font-size: 14px;
-font-weight: 500;
-cursor: pointer;
-width: auto;
-min-width: 70px;
-height: 36px;
-}
+  /* system messages */
+  .system-msg {
+    text-align: center;
+    font-size: 11px;
+    color: var(--muted);
+    padding: 4px 0;
+    font-style: italic;
+  }
 
+  /* ── TYPING INDICATOR ───────────────────────────────────────── */
+  #typing-bar {
+    padding: 4px 20px 0;
+    font-size: 12px;
+    color: var(--accent);
+    height: 20px;
+    font-style: italic;
+    transition: opacity .2s;
+  }
+
+  /* ── INPUT AREA ─────────────────────────────────────────────── */
+  .input-area {
+    padding: 12px 20px 16px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  /* Image preview */
+  #image-preview-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  #image-preview { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; }
+  #image-preview-name { font-size: 12px; color: var(--muted); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #clear-image { background: transparent; border: none; color: var(--danger); cursor: pointer; font-size: 18px; line-height: 1; }
+
+  .input-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+  }
+
+  #msg-input {
+    flex: 1;
+    resize: none;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 14px;
+    line-height: 1.5;
+    max-height: 120px;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  #msg-input::-webkit-scrollbar { display: none; }
+
+  .char-counter {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    align-self: flex-end;
+    padding-bottom: 12px;
+  }
+  .char-counter.warn { color: var(--warn); }
+  .char-counter.over { color: var(--danger); }
+
+  .input-actions { display: flex; gap: 8px; align-items: flex-end; }
+
+  .upload-btn {
+    width: 40px; height: 40px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .15s;
+    flex-shrink: 0;
+  }
+  .upload-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  #send-btn {
+    width: 40px; height: 40px;
+    background: var(--accent);
+    border: none;
+    border-radius: 10px;
+    color: #000;
+    cursor: pointer;
+    font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .15s;
+    flex-shrink: 0;
+  }
+  #send-btn:hover { background: #6ee7a0; transform: translateY(-1px); }
+  #send-btn:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; transform: none; }
+
+  /* ── ADMIN PANEL ────────────────────────────────────────────── */
+  .admin-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.85);
+    backdrop-filter: blur(8px);
+    z-index: 200;
+    display: flex;
+    animation: fadeIn .2s ease;
+  }
+  .admin-panel {
+    width: 100%;
+    max-width: 820px;
+    margin: auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+    overflow: hidden;
+    animation: slideUp .25s ease;
+  }
+  .admin-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 28px;
+    border-bottom: 1px solid var(--border);
+  }
+  .admin-header h2 { font-family: var(--font-head); font-size: 20px; font-weight: 800; }
+  .admin-tabs {
+    display: flex; gap: 4px;
+    padding: 12px 28px;
+    border-bottom: 1px solid var(--border);
+  }
+  .admin-tab {
+    padding: 7px 16px; border-radius: 8px;
+    background: transparent; border: 1px solid transparent;
+    color: var(--muted); font-family: var(--font-body); font-size: 13px;
+    cursor: pointer; transition: all .15s;
+  }
+  .admin-tab.active { background: var(--surface2); border-color: var(--border); color: var(--text); }
+  .admin-content { flex: 1; overflow-y: auto; padding: 20px 28px; }
+
+  .admin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .admin-table th {
+    text-align: left; padding: 10px 12px;
+    color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px;
+    border-bottom: 1px solid var(--border);
+  }
+  .admin-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; word-break: break-word; }
+  .admin-table tr:hover td { background: var(--surface2); }
+  .msg-preview { max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ── IMAGE LIGHTBOX ─────────────────────────────────────────── */
+  .lightbox {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.9);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 300;
+    cursor: zoom-out;
+    animation: fadeIn .15s ease;
+  }
+  .lightbox img { max-width: 90vw; max-height: 90vh; border-radius: 12px; }
+
+  /* ── ROOM MODAL ─────────────────────────────────────────────── */
+  .code-display {
+    font-family: var(--font-mono);
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 6px;
+    color: var(--accent);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+    margin: 16px 0;
+  }
+
+  /* ── NOTIFICATION DOT ───────────────────────────────────────── */
+  /* Handled via JS document.title */
+
+  /* ── RESPONSIVE ─────────────────────────────────────────────── */
+  @media (max-width: 600px) {
+    .sidebar { display: none; }
+    .modal { padding: 24px 20px; margin: 16px; }
+  }
 </style>
 </head>
-
 <body>
 
-<!-- PASSWORD SCREEN -->
+<!-- ═══════════════════════════════════════════════════
+     LOGIN OVERLAY
+════════════════════════════════════════════════════ -->
+<div class="overlay" id="login-overlay">
+  <div class="modal">
+    <div class="logo" style="margin-bottom:6px"><span class="logo-dot"></span>ChatHQ</div>
+    <p class="subtitle">Real-time chat. Pick a name, enter the password.</p>
 
-<div id="passwordScreen" class="screen">
-
-<div class="loginBox">
-
-<h2>SecureChatHQ</h2>
-
-<input id="passwordInput" type="password" placeholder="Enter password">
-
-<button onclick="checkPassword()">Continue</button>
-
-<div id="error"></div>
-
+    <div class="form-group">
+      <label>Username</label>
+      <input type="text" id="login-username" placeholder="e.g. blaze99" maxlength="20" autocomplete="off" />
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="login-password" placeholder="Chat password" />
+    </div>
+    <div class="error-msg" id="login-error"></div>
+    <button class="btn btn-primary" style="width:100%;margin-top:8px" onclick="doLogin()">Enter Chat →</button>
+  </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════
+     ROOM MODAL
+════════════════════════════════════════════════════ -->
+<div class="overlay hidden" id="room-overlay">
+  <div class="modal">
+    <h2>Rooms</h2>
+    <p class="subtitle">Create a private room or join one with a code.</p>
+    <div class="modal-tabs">
+      <button class="tab-btn active" onclick="switchRoomTab('create')">Create Room</button>
+      <button class="tab-btn" onclick="switchRoomTab('join')">Join Room</button>
+    </div>
+    <div id="room-create-panel">
+      <div class="form-group">
+        <label>Room Name</label>
+        <input type="text" id="room-name-input" placeholder="e.g. squad-only" maxlength="30" />
+      </div>
+      <button class="btn btn-primary" style="width:100%" onclick="createRoom()">Create Room</button>
+      <div id="room-code-result" class="hidden">
+        <div class="code-display" id="room-code-display">------</div>
+        <p style="font-size:13px;color:var(--muted);text-align:center">Share this code with friends</p>
+        <button class="btn btn-ghost" style="width:100%;margin-top:10px" onclick="closeRoomModal()">Done</button>
+      </div>
+    </div>
+    <div id="room-join-panel" class="hidden">
+      <div class="form-group">
+        <label>Room Code</label>
+        <input type="text" id="room-code-input" placeholder="e.g. AB12CD" maxlength="6" style="text-transform:uppercase;letter-spacing:4px;font-family:var(--font-mono);font-size:20px" />
+      </div>
+      <button class="btn btn-primary" style="width:100%" onclick="joinRoom()">Join Room</button>
+    </div>
+    <div class="error-msg" id="room-error"></div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:12px" onclick="closeRoomModal()">Cancel</button>
+  </div>
 </div>
 
-<!-- USERNAME SCREEN -->
-
-<div id="usernameScreen" class="screen" style="display:none;">
-
-<div class="loginBox">
-
-<h2>Choose Username</h2>
-
-<input id="usernameInput" placeholder="Username">
-
-<button onclick="setUsername()">Join Chat</button>
-
+<!-- ═══════════════════════════════════════════════════
+     ADMIN LOGIN OVERLAY
+════════════════════════════════════════════════════ -->
+<div class="overlay hidden" id="admin-login-overlay">
+  <div class="modal">
+    <h2>Admin Access</h2>
+    <p class="subtitle">Enter the admin password to continue.</p>
+    <div class="form-group">
+      <label>Admin Password</label>
+      <input type="password" id="admin-pass-input" placeholder="Admin password" onkeydown="if(event.key==='Enter')doAdminLogin()" />
+    </div>
+    <div class="error-msg" id="admin-login-error"></div>
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <button class="btn btn-ghost" style="flex:1" onclick="document.getElementById('admin-login-overlay').classList.add('hidden')">Cancel</button>
+      <button class="btn btn-primary" style="flex:1" onclick="doAdminLogin()">Enter</button>
+    </div>
+  </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════
+     ADMIN PANEL
+════════════════════════════════════════════════════ -->
+<div class="admin-overlay hidden" id="admin-overlay">
+  <div class="admin-panel">
+    <div class="admin-header">
+      <h2>⚡ Admin Panel</h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeAdmin()">✕ Close</button>
+    </div>
+    <div class="admin-tabs">
+      <button class="admin-tab active" onclick="adminTab('messages')">Messages</button>
+      <button class="admin-tab" onclick="adminTab('users')">Users</button>
+      <button class="admin-tab" onclick="adminTab('settings')">Settings</button>
+    </div>
+    <div class="admin-content">
+      <!-- Messages -->
+      <div id="admin-messages-panel">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+          <input type="text" id="admin-room-filter" placeholder="Room (default: general)" style="max-width:220px" />
+          <button class="btn btn-ghost btn-sm" onclick="loadAdminMessages()">Load</button>
+        </div>
+        <table class="admin-table">
+          <thead><tr><th>User</th><th>Message</th><th>Time</th><th></th></tr></thead>
+          <tbody id="admin-messages-body"></tbody>
+        </table>
+      </div>
+      <!-- Users -->
+      <div id="admin-users-panel" class="hidden">
+        <button class="btn btn-ghost btn-sm" style="margin-bottom:16px" onclick="loadAdminUsers()">Refresh</button>
+        <table class="admin-table">
+          <thead><tr><th>Username</th><th>Joined</th><th>Status</th><th></th></tr></thead>
+          <tbody id="admin-users-body"></tbody>
+        </table>
+      </div>
+      <!-- Settings -->
+      <div id="admin-settings-panel" class="hidden">
+        <h3 style="font-size:15px;margin-bottom:16px;font-family:var(--font-head)">Change General Chat Password</h3>
+        <div style="display:flex;gap:10px">
+          <input type="text" id="new-pass-input" placeholder="New password" />
+          <button class="btn btn-primary btn-sm" onclick="changePassword()" style="white-space:nowrap">Update</button>
+        </div>
+        <div class="error-msg" id="admin-settings-msg" style="color:var(--accent)"></div>
+      </div>
+    </div>
+  </div>
 </div>
 
-<!-- CHAT APP -->
+<!-- ═══════════════════════════════════════════════════
+     MAIN APP
+════════════════════════════════════════════════════ -->
+<div id="app" class="hidden" style="display:none;flex-direction:column;height:100%">
 
-<div id="app">
+  <header class="app-header">
+    <div class="logo"><span class="logo-dot"></span>ChatHQ</div>
+    <div class="header-right">
+      <span class="room-badge" id="current-room-badge"># general</span>
+      <button class="icon-btn" title="Rooms" onclick="openRoomModal()">⊞</button>
+      <button class="icon-btn" title="Admin" onclick="openAdminLogin()">🔑</button>
+    </div>
+  </header>
 
-<div id="sidebar">
-<h3>Online</h3>
-<div id="users">Loading...</div>
+  <div class="app-body">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-label">Rooms</div>
+        <div class="room-list" id="room-list">
+          <div class="room-item active" data-room="general" onclick="switchRoom('general','General')">
+            <span class="room-icon">#</span> General
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:10px" onclick="openRoomModal()">+ Room</button>
+      </div>
+      <div class="sidebar-label" style="padding:16px 16px 8px">Online</div>
+      <div class="online-list" id="online-list"></div>
+    </aside>
+
+    <!-- Chat -->
+    <div class="chat-container">
+      <div id="messages"></div>
+      <div id="typing-bar"></div>
+      <div class="input-area">
+        <div id="image-preview-wrap" class="hidden">
+          <img id="image-preview" src="" alt="preview" />
+          <span id="image-preview-name"></span>
+          <button id="clear-image" onclick="clearImage()">✕</button>
+        </div>
+        <div class="input-row">
+          <textarea id="msg-input" rows="1" placeholder="Send a message…" maxlength="1000"
+            oninput="onInputChange()" onkeydown="handleKeyDown(event)"></textarea>
+          <span class="char-counter" id="char-counter">0/1000</span>
+          <div class="input-actions">
+            <label class="upload-btn" title="Send image">
+              📎<input type="file" id="file-input" accept="image/*" class="hidden" onchange="handleFile(event)" />
+            </label>
+            <button id="send-btn" onclick="sendMessage()" disabled>➤</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
-<div id="main">
-
-<div id="chat"></div>
-
-<form id="messageForm">
-
-<input id="messageInput" autocomplete="off" placeholder="Type a message...">
-
-<button id="sendBtn">Send</button>
-
-</form>
-
+<!-- Image lightbox -->
+<div class="lightbox hidden" id="lightbox" onclick="this.classList.add('hidden')">
+  <img id="lightbox-img" src="" />
 </div>
 
-</div>
-
-<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-
+<!-- ═══════════════════════════════════════════════════
+     JAVASCRIPT
+════════════════════════════════════════════════════ -->
 <script>
+// ── CONFIG ───────────────────────────────────────────────────
+const SERVER = window.location.hostname === 'localhost'
+  ? 'http://localhost:3000'
+  : window.location.origin;
 
-const socket = io("https://chat-hq.onrender.com");
+// ── STATE ────────────────────────────────────────────────────
+let socket = null;
+let myUsername = '';
+let currentRoom = 'general';
+let currentRoomName = 'General';
+let adminPass = '';
+let pendingImage = null; // { dataUrl, mime, name }
+let typingTimer = null;
+let isTyping = false;
+let joinedRooms = [{ id: 'general', name: 'General' }];
+let hasFocus = true;
+let unreadCount = 0;
+const originalTitle = 'ChatHQ';
 
-let username="";
-let isAdmin=false;
+// ── FOCUS TRACKING ───────────────────────────────────────────
+window.addEventListener('focus', () => {
+  hasFocus = true;
+  unreadCount = 0;
+  document.title = originalTitle;
+});
+window.addEventListener('blur', () => { hasFocus = false; });
 
-/* PASSWORD CHECK */
-
-function checkPassword(){
-
-const pw=document.getElementById("passwordInput").value;
-
-socket.emit("enter password",pw,(res)=>{
-
-if(!res.success){
-document.getElementById("error").textContent="Wrong password";
-return;
+function bumpUnread() {
+  if (!hasFocus) {
+    unreadCount++;
+    document.title = `(${unreadCount}) 🔴 ${originalTitle}`;
+  }
 }
 
-isAdmin=res.isAdmin;
-
-document.getElementById("passwordScreen").style.display="none";
-document.getElementById("usernameScreen").style.display="flex";
-
+// ── LOGIN ────────────────────────────────────────────────────
+document.getElementById('login-password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+document.getElementById('login-username').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
 });
 
+async function doLogin() {
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.textContent = '';
+
+  if (!username) return errEl.textContent = 'Enter a username.';
+
+  try {
+    const res = await fetch(`${SERVER}/api/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (!res.ok) return errEl.textContent = data.error;
+
+    myUsername = data.username;
+    document.getElementById('login-overlay').classList.add('hidden');
+    showApp();
+  } catch(e) {
+    errEl.textContent = 'Could not connect to server.';
+  }
 }
 
-/* USERNAME SET */
-
-function setUsername(){
-
-username=document.getElementById("usernameInput").value;
-
-if(!username) return;
-
-socket.emit("set username",username,(res)=>{
-
-if(!res.success){
-alert(res.message);
-return;
+function showApp() {
+  const app = document.getElementById('app');
+  app.classList.remove('hidden');
+  app.style.display = 'flex';
+  connectSocket();
+  loadHistory(currentRoom);
 }
 
-document.getElementById("usernameScreen").style.display="none";
-document.getElementById("app").style.display="block";
+// ── SOCKET ───────────────────────────────────────────────────
+function connectSocket() {
+  socket = io(SERVER);
 
-});
+  socket.on('connect', () => {
+    socket.emit('joinRoom', { username: myUsername, room: currentRoom });
+  });
 
+  socket.on('newMessage', msg => {
+    renderMessage(msg);
+    if (msg.username !== myUsername) bumpUnread();
+    scrollToBottom();
+  });
+
+  socket.on('systemMessage', ({ text }) => {
+    renderSystem(text);
+    scrollToBottom();
+  });
+
+  socket.on('onlineUsers', users => {
+    renderOnline(users);
+  });
+
+  socket.on('typingUpdate', users => {
+    const others = users.filter(u => u !== myUsername);
+    const bar = document.getElementById('typing-bar');
+    if (others.length === 0) {
+      bar.textContent = '';
+    } else if (others.length === 1) {
+      bar.textContent = `${others[0]} is typing…`;
+    } else {
+      bar.textContent = `${others.join(', ')} are typing…`;
+    }
+  });
+
+  socket.on('messageDeleted', id => {
+    const el = document.querySelector(`[data-id="${id}"]`);
+    if (el) el.remove();
+  });
+
+  socket.on('kicked', msg => {
+    alert(msg);
+    location.reload();
+  });
+
+  socket.on('error', msg => alert(msg));
 }
 
-socket.on("user list", function(users){
-
-const list = document.getElementById("users");
-
-list.innerHTML = "";
-
-users.forEach(user => {
-
-const div = document.createElement("div");
-div.textContent = user;
-
-list.appendChild(div);
-
-});
-
-});
-  
-/* SEND MESSAGE */
-
-document.getElementById("messageForm").addEventListener("submit",function(e){
-
-e.preventDefault();
-
-const input=document.getElementById("messageInput");
-
-if(input.value){
-
-socket.emit("chat message",input.value);
-
-input.value="";
-
+// ── HISTORY ──────────────────────────────────────────────────
+async function loadHistory(room) {
+  document.getElementById('messages').innerHTML = '';
+  try {
+    const res = await fetch(`${SERVER}/api/messages/${room}`);
+    const msgs = await res.json();
+    msgs.forEach(renderMessage);
+    scrollToBottom();
+  } catch(e) {}
 }
 
-});
+// ── RENDER ───────────────────────────────────────────────────
+function renderMessage(msg) {
+  const container = document.getElementById('messages');
+  const isOwn = msg.username === myUsername;
+  const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-/* RECEIVE MESSAGE */
+  const row = document.createElement('div');
+  row.className = `msg-row${isOwn ? ' own' : ''}`;
+  row.setAttribute('data-id', msg._id);
 
-socket.on("chat message",function(data){
+  const initials = msg.username.substring(0, 2).toUpperCase();
 
-const chat=document.getElementById("chat");
+  let bodyHtml = '';
+  if (msg.imageData) {
+    const src = `data:${msg.imageMime};base64,${msg.imageData}`;
+    bodyHtml = `<img class="msg-image" src="${src}" onclick="openLightbox('${src}')" alt="image" />`;
+    if (msg.text) bodyHtml += `<div class="msg-bubble">${escapeHtml(msg.text)}</div>`;
+  } else {
+    bodyHtml = `<div class="msg-bubble">${escapeHtml(msg.text)}</div>`;
+  }
 
-const bubble=document.createElement("div");
+  row.innerHTML = `
+    <div class="msg-avatar">${initials}</div>
+    <div class="msg-content">
+      <div class="msg-meta">
+        <span class="msg-username">${escapeHtml(msg.username)}</span>
+        <span class="msg-time">${time}</span>
+      </div>
+      ${bodyHtml}
+    </div>
+  `;
 
-bubble.classList.add("message");
-
-if(data.username===username){
-bubble.classList.add("self");
-}else{
-bubble.classList.add("other");
+  container.appendChild(row);
 }
 
-const user=document.createElement("div");
-user.className="username";
-user.textContent=data.username;
+function renderSystem(text) {
+  const container = document.getElementById('messages');
+  const el = document.createElement('div');
+  el.className = 'system-msg';
+  el.textContent = text;
+  container.appendChild(el);
+}
 
-const text=document.createElement("div");
-text.textContent=data.message;
+function renderOnline(users) {
+  const list = document.getElementById('online-list');
+  list.innerHTML = '';
+  users.forEach(u => {
+    const el = document.createElement('div');
+    el.className = 'online-user';
+    el.innerHTML = `<div class="avatar">${u.substring(0,2).toUpperCase()}</div>${escapeHtml(u)}<div class="online-dot"></div>`;
+    list.appendChild(el);
+  });
+}
 
-bubble.appendChild(user);
-bubble.appendChild(text);
+// ── SEND MESSAGE ─────────────────────────────────────────────
+function handleKeyDown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
 
-chat.appendChild(bubble);
+function onInputChange() {
+  const input = document.getElementById('msg-input');
+  const val = input.value;
+  const len = val.length;
+  const counter = document.getElementById('char-counter');
+  counter.textContent = `${len}/1000`;
+  counter.className = 'char-counter' + (len > 900 ? ' warn' : '') + (len >= 1000 ? ' over' : '');
 
-chat.scrollTop=chat.scrollHeight;
+  // Auto-resize
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 120) + 'px';
 
-});
+  // Send button state
+  document.getElementById('send-btn').disabled = len === 0 && !pendingImage;
 
+  // Typing indicator
+  if (!isTyping) {
+    isTyping = true;
+    socket && socket.emit('typing', { username: myUsername, room: currentRoom, isTyping: true });
+  }
+  clearTimeout(typingTimer);
+  typingTimer = setTimeout(() => {
+    isTyping = false;
+    socket && socket.emit('typing', { username: myUsername, room: currentRoom, isTyping: false });
+  }, 1500);
+}
+
+function sendMessage() {
+  const input = document.getElementById('msg-input');
+  const text = input.value.trim();
+  if (!text && !pendingImage) return;
+  if (text.length > 1000) return;
+
+  const payload = {
+    username: myUsername,
+    room: currentRoom,
+    text: text || '',
+    imageData: pendingImage ? pendingImage.dataUrl.split(',')[1] : null,
+    imageMime: pendingImage ? pendingImage.mime : null
+  };
+
+  socket.emit('sendMessage', payload);
+
+  input.value = '';
+  input.style.height = 'auto';
+  document.getElementById('char-counter').textContent = '0/1000';
+  document.getElementById('send-btn').disabled = true;
+  clearImage();
+
+  // Stop typing
+  clearTimeout(typingTimer);
+  isTyping = false;
+  socket.emit('typing', { username: myUsername, room: currentRoom, isTyping: false });
+}
+
+// ── IMAGE HANDLING ───────────────────────────────────────────
+function handleFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) {
+    alert('Image must be under 5MB.');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = ev => {
+    pendingImage = { dataUrl: ev.target.result, mime: file.type, name: file.name };
+    document.getElementById('image-preview').src = ev.target.result;
+    document.getElementById('image-preview-name').textContent = file.name;
+    document.getElementById('image-preview-wrap').classList.remove('hidden');
+    document.getElementById('send-btn').disabled = false;
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+function clearImage() {
+  pendingImage = null;
+  document.getElementById('image-preview-wrap').classList.add('hidden');
+  document.getElementById('image-preview').src = '';
+  const text = document.getElementById('msg-input').value.trim();
+  if (!text) document.getElementById('send-btn').disabled = true;
+}
+
+function openLightbox(src) {
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('lightbox').classList.remove('hidden');
+}
+
+// ── ROOMS ────────────────────────────────────────────────────
+function openRoomModal() {
+  document.getElementById('room-overlay').classList.remove('hidden');
+  document.getElementById('room-error').textContent = '';
+  document.getElementById('room-code-result').classList.add('hidden');
+}
+function closeRoomModal() {
+  document.getElementById('room-overlay').classList.add('hidden');
+}
+function switchRoomTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', (i===0 && tab==='create')||(i===1 && tab==='join')));
+  document.getElementById('room-create-panel').classList.toggle('hidden', tab !== 'create');
+  document.getElementById('room-join-panel').classList.toggle('hidden', tab !== 'join');
+}
+
+async function createRoom() {
+  const name = document.getElementById('room-name-input').value.trim();
+  const errEl = document.getElementById('room-error');
+  errEl.textContent = '';
+  if (!name) return errEl.textContent = 'Enter a room name.';
+
+  try {
+    const res = await fetch(`${SERVER}/api/rooms/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: myUsername, roomName: name })
+    });
+    const data = await res.json();
+    if (!res.ok) return errEl.textContent = data.error;
+
+    document.getElementById('room-code-display').textContent = data.code;
+    document.getElementById('room-code-result').classList.remove('hidden');
+    addRoomToSidebar(data.room, data.code);
+    switchRoom(data.code, data.room);
+  } catch(e) { errEl.textContent = 'Server error.'; }
+}
+
+async function joinRoom() {
+  const code = document.getElementById('room-code-input').value.trim().toUpperCase();
+  const errEl = document.getElementById('room-error');
+  errEl.textContent = '';
+  if (!code) return errEl.textContent = 'Enter a room code.';
+
+  try {
+    const res = await fetch(`${SERVER}/api/rooms/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code })
+    });
+    const data = await res.json();
+    if (!res.ok) return errEl.textContent = data.error;
+
+    addRoomToSidebar(data.room, data.code);
+    switchRoom(data.code, data.room);
+    closeRoomModal();
+  } catch(e) { errEl.textContent = 'Server error.'; }
+}
+
+function addRoomToSidebar(name, code) {
+  if (joinedRooms.find(r => r.id === code)) return;
+  joinedRooms.push({ id: code, name });
+  const list = document.getElementById('room-list');
+  const el = document.createElement('div');
+  el.className = 'room-item';
+  el.setAttribute('data-room', code);
+  el.onclick = () => switchRoom(code, name);
+  el.innerHTML = `<span class="room-icon">🔒</span> ${escapeHtml(name)}`;
+  list.appendChild(el);
+}
+
+function switchRoom(roomId, roomName) {
+  currentRoom = roomId;
+  currentRoomName = roomName;
+  document.getElementById('current-room-badge').textContent = `# ${roomName.toLowerCase()}`;
+  document.querySelectorAll('.room-item').forEach(el => {
+    el.classList.toggle('active', el.getAttribute('data-room') === roomId);
+  });
+  socket.emit('joinRoom', { username: myUsername, room: roomId });
+  loadHistory(roomId);
+  closeRoomModal();
+}
+
+// ── ADMIN ────────────────────────────────────────────────────
+function openAdminLogin() {
+  document.getElementById('admin-login-overlay').classList.remove('hidden');
+  document.getElementById('admin-pass-input').value = '';
+  document.getElementById('admin-login-error').textContent = '';
+  setTimeout(() => document.getElementById('admin-pass-input').focus(), 100);
+}
+
+async function doAdminLogin() {
+  const pass = document.getElementById('admin-pass-input').value;
+  // Verify by making a test request
+  try {
+    const res = await fetch(`${SERVER}/api/admin/users`, {
+      headers: { 'x-admin-pass': pass }
+    });
+    if (!res.ok) return document.getElementById('admin-login-error').textContent = 'Wrong password.';
+    adminPass = pass;
+    document.getElementById('admin-login-overlay').classList.add('hidden');
+    openAdmin();
+  } catch(e) {
+    document.getElementById('admin-login-error').textContent = 'Server error.';
+  }
+}
+
+function openAdmin() {
+  document.getElementById('admin-overlay').classList.remove('hidden');
+  loadAdminMessages();
+}
+
+function closeAdmin() {
+  document.getElementById('admin-overlay').classList.add('hidden');
+}
+
+function adminTab(tab) {
+  document.querySelectorAll('.admin-tab').forEach((b, i) => {
+    b.classList.toggle('active', ['messages','users','settings'][i] === tab);
+  });
+  document.getElementById('admin-messages-panel').classList.toggle('hidden', tab !== 'messages');
+  document.getElementById('admin-users-panel').classList.toggle('hidden', tab !== 'users');
+  document.getElementById('admin-settings-panel').classList.toggle('hidden', tab !== 'settings');
+  if (tab === 'users') loadAdminUsers();
+}
+
+async function loadAdminMessages() {
+  const room = document.getElementById('admin-room-filter').value.trim() || 'general';
+  const res = await fetch(`${SERVER}/api/admin/messages?room=${room}`, {
+    headers: { 'x-admin-pass': adminPass }
+  });
+  const msgs = await res.json();
+  const body = document.getElementById('admin-messages-body');
+  body.innerHTML = '';
+  msgs.forEach(m => {
+    const tr = document.createElement('tr');
+    const time = new Date(m.timestamp).toLocaleString();
+    const preview = m.imageData ? '[image]' : (m.text || '');
+    tr.innerHTML = `
+      <td>${escapeHtml(m.username)}</td>
+      <td><div class="msg-preview">${escapeHtml(preview)}</div></td>
+      <td style="color:var(--muted);font-size:11px;white-space:nowrap">${time}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="adminDeleteMsg('${m._id}', this)">Delete</button></td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+async function adminDeleteMsg(id, btn) {
+  if (!confirm('Delete this message?')) return;
+  await fetch(`${SERVER}/api/admin/messages/${id}`, {
+    method: 'DELETE',
+    headers: { 'x-admin-pass': adminPass }
+  });
+  btn.closest('tr').remove();
+}
+
+async function loadAdminUsers() {
+  const res = await fetch(`${SERVER}/api/admin/users`, {
+    headers: { 'x-admin-pass': adminPass }
+  });
+  const users = await res.json();
+  const body = document.getElementById('admin-users-body');
+  body.innerHTML = '';
+  users.forEach(u => {
+    const tr = document.createElement('tr');
+    const joined = new Date(u.createdAt).toLocaleDateString();
+    tr.innerHTML = `
+      <td>${escapeHtml(u.username)}</td>
+      <td style="color:var(--muted);font-size:12px">${joined}</td>
+      <td><span style="color:${u.banned ? 'var(--danger)' : 'var(--accent)'};">${u.banned ? 'Banned' : 'Active'}</span></td>
+      <td>${u.banned ? '' : `<button class="btn btn-danger btn-sm" onclick="adminBanUser('${u.username}', this)">Ban</button>`}</td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+async function adminBanUser(username, btn) {
+  if (!confirm(`Ban ${username}? They will be kicked and cannot rejoin.`)) return;
+  await fetch(`${SERVER}/api/admin/users/${username}`, {
+    method: 'DELETE',
+    headers: { 'x-admin-pass': adminPass }
+  });
+  btn.closest('tr').querySelector('span').textContent = 'Banned';
+  btn.remove();
+}
+
+async function changePassword() {
+  const newPass = document.getElementById('new-pass-input').value.trim();
+  const msgEl = document.getElementById('admin-settings-msg');
+  msgEl.style.color = 'var(--accent)';
+  msgEl.textContent = '';
+  if (!newPass || newPass.length < 4) return msgEl.textContent = 'Password must be at least 4 chars.';
+
+  const res = await fetch(`${SERVER}/api/admin/password`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'x-admin-pass': adminPass },
+    body: JSON.stringify({ newPassword: newPass })
+  });
+  const data = await res.json();
+  if (!res.ok) { msgEl.style.color = 'var(--danger)'; return msgEl.textContent = data.error; }
+  msgEl.textContent = '✓ Password updated!';
+  document.getElementById('new-pass-input').value = '';
+}
+
+// ── UTILITIES ────────────────────────────────────────────────
+function escapeHtml(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function scrollToBottom() {
+  const el = document.getElementById('messages');
+  el.scrollTop = el.scrollHeight;
+}
 </script>
-
 </body>
 </html>
